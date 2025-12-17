@@ -1043,6 +1043,8 @@ func registerWebRoutes(m *web.Router) {
 					// TODO: improper name. Others are "delete project", "edit project", but this one is "move columns"
 					m.Post("/move", project.MoveColumns)
 					m.Post("/columns/new", web.Bind(forms.EditProjectColumnForm{}), org.AddColumnToProjectPost)
+					m.Post("/add-issue", org.AddIssueToColumn)
+					m.Post("/add-pull", org.AddPullToColumn)
 					m.Group("/{columnID}", func() {
 						m.Put("", web.Bind(forms.EditProjectColumnForm{}), org.EditProjectColumn)
 						m.Delete("", org.DeleteProjectColumn)
@@ -1428,16 +1430,18 @@ func registerWebRoutes(m *web.Router) {
 				m.Post("/edit", web.Bind(forms.CreateProjectForm{}), repo.EditProjectPost)
 				m.Post("/{action:open|close}", repo.ChangeProjectStatus)
 
-				// TODO: improper name. Others are "delete project", "edit project", but this one is "move columns"
-				m.Post("/move", project.MoveColumns)
-				m.Post("/columns/new", web.Bind(forms.EditProjectColumnForm{}), repo.AddColumnToProjectPost)
-				m.Group("/{columnID}", func() {
-					m.Put("", web.Bind(forms.EditProjectColumnForm{}), repo.EditProjectColumn)
-					m.Delete("", repo.DeleteProjectColumn)
-					m.Post("/default", repo.SetDefaultProjectColumn)
-					m.Post("/move", repo.MoveIssues)
-				})
-			})
+							// TODO: improper name. Others are "delete project", "edit project", but this one is "move columns"
+							m.Post("/move", project.MoveColumns)
+							m.Post("/columns/new", web.Bind(forms.EditProjectColumnForm{}), repo.AddColumnToProjectPost)
+							m.Post("/add-issue", repo.AddIssueToColumn)
+							m.Post("/add-pull", repo.AddPullToColumn)
+							m.Group("/{columnID}", func() {
+								m.Put("", web.Bind(forms.EditProjectColumnForm{}), repo.EditProjectColumn)
+								m.Delete("", repo.DeleteProjectColumn)
+								m.Post("/default", repo.SetDefaultProjectColumn)
+								m.Post("/move", repo.MoveIssues)
+							})
+						})
 		}, reqRepoProjectsWriter, context.RepoMustNotBeArchived())
 	}, optSignIn, context.RepoAssignment, reqRepoProjectsReader, repo.MustEnableRepoProjects)
 	// end "/{username}/{reponame}/projects"
