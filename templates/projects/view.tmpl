@@ -107,6 +107,14 @@
 								>
 									{{svg "octicon-git-pull-request"}} {{ctx.Locale.Tr "repo.projects.column.add_pull"}}
 								</a>
+								{{if $.Project.IsOrganizationProject}}
+									<a class="item button show-modal show-bind-repo-modal" data-modal="#bind-repo-modal"
+										data-modal-header="{{ctx.Locale.Tr "repo.projects.column.bind_repos"}}"
+										data-modal-column-id="{{.ID}}"
+									>
+										{{svg "octicon-repo"}} {{ctx.Locale.Tr "repo.projects.column.bind_repos"}}
+									</a>
+								{{end}}
 								{{if not .Default}}
 									<a class="item button link-action" data-url="{{$.Link}}/{{.ID}}/default"
 										data-modal-confirm-header="{{ctx.Locale.Tr "repo.projects.column.set_default"}}"
@@ -127,15 +135,44 @@
 				</div>
 				<div class="divider"{{if .Color}} style="color: {{ContrastColor .Color}} !important"{{end}}></div>
 				<div class="ui cards" data-url="{{$.Link}}/{{.ID}}" data-project="{{$.Project.ID}}" data-board="{{.ID}}" id="board_{{.ID}}">
-					{{range (index $.IssuesMap .ID)}}
-						<div class="issue-card tw-break-anywhere {{if $canWriteProject}}tw-cursor-grab{{end}}" data-issue="{{.ID}}">
-							{{template "repo/issue/card" (dict "Issue" . "Page" $)}}
-						</div>
-					{{end}}
-				</div>
-			</div>
-		{{end}}
-	</div>
+					{{$columnID := .ID}}
+					{{range (index $.ColumnCardsMap $columnID)}}
+						{{if eq .Type "repo"}}
+							<div class="issue-card tw-break-anywhere repo-card {{if $canWriteProject}}tw-cursor-grab{{end}}" data-repo="{{.Repo.ID}}">
+								<div class="content tw-w-full">
+									<div class="tw-flex tw-items-start tw-gap-[5px]">
+										<div class="issue-card-icon">
+											<span class="text green">{{svg "octicon-repo" 16}}</span>
+										</div>
+										<a class="issue-card-title muted issue-title tw-break-anywhere" href="{{.Repo.Link}}" target="_blank">{{.Repo.FullName}}</a>
+										{{if $canWriteProject}}
+											<a role="button" class="issue-card-unbind muted tw-flex tw-items-center" data-tooltip-content="{{ctx.Locale.Tr "repo.projects.column.unbind"}}" data-card-type="repo" data-id="{{.Repo.ID}}" data-column-id="{{$columnID}}">
+												{{svg "octicon-x" 16}}
+											</a>
+										{{end}}
+									</div>
+									{{if .Repo.Description}}
+										<div class="meta tw-my-1">
+											<span class="text light grey">{{.Repo.Description}}</span>
+										</div>
+									{{end}}
+									<div class="meta tw-my-1">
+										<span class="text light grey muted-links tw-flex tw-items-center">
+											<span class="tw-flex tw-items-center">{{svg "octicon-star" 12 "tw-mr-1"}} {{.Repo.NumStars}}</span>
+											<span class="tw-flex tw-items-center tw-ml-2">{{svg "octicon-git-branch" 12 "tw-mr-1"}} {{.Repo.NumForks}}</span>
+										</span>
+									</div>
+								</div>
+													</div>
+												{{else}}
+													<div class="issue-card tw-break-anywhere {{if $canWriteProject}}tw-cursor-grab{{end}}" data-issue="{{.Issue.ID}}">
+														{{template "repo/issue/card" (dict "Issue" .Issue "Page" $ "ShowUnbind" $canWriteProject "UnbindColumnID" $columnID)}}
+													</div>
+												{{end}}
+											{{end}}
+										</div>
+									</div>
+								{{end}}	</div>
 </div>
 
 {{if $canWriteProject}}
@@ -229,6 +266,29 @@
 	</div>
 </div>
 
+<div class="ui small modal" id="bind-repo-modal">
+	<div class="header">{{ctx.Locale.Tr "repo.projects.column.bind_repos"}}</div>
+	<div class="content">
+		<form class="ui form ignore-dirty" method="post" action="{{$.Link}}/bind-repos">
+			{{.CsrfTokenHtml}}
+			<input type="hidden" name="column_id" id="bind-repo-column-id">
+			<div class="field">
+				<label for="bind-repos">{{ctx.Locale.Tr "repo.projects.column.select_repos"}}</label>
+				<select name="repo_ids" id="bind-repos">
+					<option value="">{{ctx.Locale.Tr "repo.projects.column.choose_repos"}}</option>
+					{{range .AvailableRepos}}
+						<option value="{{.ID}}">{{.Name}}</option>
+					{{end}}
+				</select>
+			</div>
+			<div class="actions">
+				<button class="ui cancel button">{{ctx.Locale.Tr "settings.cancel"}}</button>
+				<button type="submit" class="ui primary button">{{ctx.Locale.Tr "repo.projects.column.bind_repos"}}</button>
+			</div>
+		</form>
+	</div>
+</div>
+
 <script>
 // Handle opening the add issue modal and set the column_id
 document.querySelectorAll('.show-add-issue-modal').forEach(button => {
@@ -303,6 +363,32 @@ document.getElementById('issue-repo').addEventListener('change', async function(
 	}
 });
 
+// Handle opening the bind repo modal and set the column_id
+document.querySelectorAll('.show-bind-repo-modal').forEach(button => {
+	button.addEventListener('click', async function(e) {
+		const columnId = this.getAttribute('data-modal-column-id');
+		document.getElementById('bind-repo-column-id').value = columnId;
+		
+		// Load currently bound repos for this column
+		const select = document.getElementById('bind-repos');
+		if (select) {
+			try {
+				const response = await fetch(`{{$.Link}}/${columnId}/repos`);
+				const boundRepos = await response.json();
+				
+				// Set selected option (only first one for single select)
+				if (boundRepos.length > 0) {
+					select.value = boundRepos[0].toString();
+				} else {
+					select.value = '';
+				}
+			} catch (error) {
+				console.error('Failed to load bound repos:', error);
+			}
+		}
+	});
+});
+
 // Load pull requests when repository is selected
 document.getElementById('pull-repo').addEventListener('change', async function() {
 	const pullSelect = document.getElementById('pull-number');
@@ -344,6 +430,67 @@ document.getElementById('pull-repo').addEventListener('change', async function()
 		console.error('Failed to load pull requests:', error);
 		pullSelect.innerHTML = '<option value="">{{ctx.Locale.Tr "error.occurred"}}</option>';
 	}
+});
+
+// Handle unbind button click for all card types
+document.querySelectorAll('.issue-card-unbind').forEach(button => {
+	button.addEventListener('click', async function(e) {
+		e.preventDefault();
+		e.stopPropagation();
+		
+		const cardType = this.getAttribute('data-card-type');
+		const id = this.getAttribute('data-id');
+		const columnId = this.getAttribute('data-column-id');
+		
+		if (!confirm('{{ctx.Locale.Tr "repo.projects.column.unbind_confirm"}}')) {
+			return;
+		}
+		
+		// Get CSRF token
+		const csrfToken = window.config?.csrfToken || '';
+		
+		try {
+			let response;
+			if (cardType === 'repo') {
+				// Unbind repository
+				response = await fetch(`{{$.Link}}/${columnId}/unbind-repo`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+						'X-Csrf-Token': csrfToken,
+					},
+					body: `repo_id=${id}`
+				});
+			} else {
+				// Unbind issue/PR
+				response = await fetch(`{{$.Link}}/${columnId}/unbind-issue`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+						'X-Csrf-Token': csrfToken,
+					},
+					body: `issue_id=${id}`
+				});
+			}
+			
+			if (response.ok) {
+				// Remove the card from DOM
+				const card = this.closest('.issue-card');
+				card.remove();
+				
+				// Update the card count
+				const column = document.querySelector(`.project-column[data-id="${columnId}"]`);
+				const countLabel = column.querySelector('.project-column-issue-count');
+				const currentCount = parseInt(countLabel.textContent);
+				countLabel.textContent = currentCount - 1;
+			} else {
+				alert('{{ctx.Locale.Tr "error.occurred"}}');
+			}
+		} catch (error) {
+			console.error('Failed to unbind card:', error);
+			alert('{{ctx.Locale.Tr "error.occurred"}}');
+		}
+	});
 });
 </script>
 {{end}}
