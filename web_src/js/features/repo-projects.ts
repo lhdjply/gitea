@@ -17,12 +17,29 @@ async function moveIssue({item, from, to, oldIndex}: SortableEvent): Promise<voi
   updateIssueCount(from);
   updateIssueCount(to);
 
-  const columnSorting = {
-    issues: Array.from(columnCards, (card, i) => ({
-      issueID: parseInt(card.getAttribute('data-issue')),
-      sorting: i,
-    })),
-  };
+  const issues = [];
+  const repos = [];
+  
+  Array.from(columnCards).forEach((card, i) => {
+    const issueID = card.getAttribute('data-issue');
+    const repoID = card.getAttribute('data-repo');
+    
+    if (issueID) {
+      issues.push({
+        issueID: parseInt(issueID),
+        sorting: i,
+      });
+    } else if (repoID) {
+      repos.push({
+        repoID: parseInt(repoID),
+        sorting: i,
+      });
+    }
+  });
+
+  const columnSorting = {issues, repos};
+  
+  console.log('Moving cards:', columnSorting);
 
   try {
     await POST(`${to.getAttribute('data-url')}/move`, {
