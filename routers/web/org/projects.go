@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 
 	"code.gitea.io/gitea/models/db"
@@ -17,6 +19,7 @@ import (
 	attachment_model "code.gitea.io/gitea/models/repo"
 	"code.gitea.io/gitea/models/unit"
 	"code.gitea.io/gitea/modules/json"
+	"code.gitea.io/gitea/modules/log"
 	"code.gitea.io/gitea/modules/optional"
 	"code.gitea.io/gitea/modules/setting"
 	"code.gitea.io/gitea/modules/templates"
@@ -355,8 +358,87 @@ func ViewProject(ctx *context.Context) {
 		ctx.ServerError("LoadIssuesOfColumns", err)
 		return
 	}
+	
+	type CardItem struct {
+		Type    string
+		Repo    *attachment_model.Repository
+		Issue   *issues_model.Issue
+		Sorting int64
+	}
+	
+	columnCardsMap := make(map[int64][]*CardItem)
+	
+	if project.IsOrganizationProject() {
+		for _, column := range columns {
+			cards := make([]*CardItem, 0)
+			
+			reposWithSorting, err := project_model.GetColumnReposWithSorting(ctx, column.ID)
+			if err != nil {
+				ctx.ServerError("GetColumnReposWithSorting", err)
+				return
+			}
+			for _, rws := range reposWithSorting {
+				cards = append(cards, &CardItem{
+					Type:    "repo",
+					Repo:    rws.Repo,
+					Sorting: rws.Sorting,
+				})
+			}
+			
+			projectIssues, err := column.GetIssues(ctx)
+			if err != nil {
+				ctx.ServerError("GetIssues", err)
+				return
+			}
+			
+			for _, pi := range projectIssues {
+				for _, issue := range issuesMap[column.ID] {
+					if issue.ID == pi.IssueID {
+						cards = append(cards, &CardItem{
+							Type:    "issue",
+							Issue:   issue,
+							Sorting: pi.Sorting,
+						})
+						break
+					}
+				}
+			}
+			
+			sort.Slice(cards, func(i, j int) bool {
+				return cards[i].Sorting < cards[j].Sorting
+			})
+			
+			columnCardsMap[column.ID] = cards
+		}
+	} else {
+		for _, column := range columns {
+			cards := make([]*CardItem, 0, len(issuesMap[column.ID]))
+			
+			projectIssues, err := column.GetIssues(ctx)
+			if err != nil {
+				ctx.ServerError("GetIssues", err)
+				return
+			}
+			
+			for _, pi := range projectIssues {
+				for _, issue := range issuesMap[column.ID] {
+					if issue.ID == pi.IssueID {
+						cards = append(cards, &CardItem{
+							Type:    "issue",
+							Issue:   issue,
+							Sorting: pi.Sorting,
+						})
+						break
+					}
+				}
+			}
+			
+			columnCardsMap[column.ID] = cards
+		}
+	}
+	
 	for _, column := range columns {
-		column.NumIssues = int64(len(issuesMap[column.ID]))
+		column.NumIssues = int64(len(columnCardsMap[column.ID]))
 	}
 
 	if project.CardType != project_model.CardTypeTextOnly {
@@ -454,7 +536,7 @@ func ViewProject(ctx *context.Context) {
 	ctx.Data["PageIsViewProjects"] = true
 	ctx.Data["CanWriteProjects"] = canWriteProjects(ctx)
 	ctx.Data["Project"] = project
-	ctx.Data["IssuesMap"] = issuesMap
+	ctx.Data["ColumnCardsMap"] = columnCardsMap
 	ctx.Data["Columns"] = columns
 	ctx.Data["Title"] = fmt.Sprintf("%s - %s", project.Title, ctx.ContextUser.DisplayName())
 
@@ -769,6 +851,10 @@ func MoveIssues(ctx *context.Context) {
 			IssueID int64 `json:"issueID"`
 			Sorting int64 `json:"sorting"`
 		} `json:"issues"`
+		Repos []struct {
+			RepoID  int64 `json:"repoID"`
+			Sorting int64 `json:"sorting"`
+		} `json:"repos"`
 	}
 
 	form := &movedIssuesForm{}
@@ -776,6 +862,8 @@ func MoveIssues(ctx *context.Context) {
 		ctx.ServerError("DecodeMovedIssuesForm", err)
 		return
 	}
+	
+	log.Info("MoveIssues: received %d issues and %d repos", len(form.Issues), len(form.Repos))
 
 	issueIDs := make([]int64, 0, len(form.Issues))
 	sortedIssueIDs := make(map[int64]int64)
@@ -783,31 +871,281 @@ func MoveIssues(ctx *context.Context) {
 		issueIDs = append(issueIDs, issue.IssueID)
 		sortedIssueIDs[issue.Sorting] = issue.IssueID
 	}
-	movedIssues, err := issues_model.GetIssuesByIDs(ctx, issueIDs)
+	
+	if len(issueIDs) > 0 {
+		movedIssues, err := issues_model.GetIssuesByIDs(ctx, issueIDs)
+		if err != nil {
+			ctx.NotFoundOrServerError("GetIssueByID", issues_model.IsErrIssueNotExist, err)
+			return
+		}
+
+		if len(movedIssues) != len(form.Issues) {
+			ctx.ServerError("some issues do not exist", errors.New("some issues do not exist"))
+			return
+		}
+
+		if _, err = movedIssues.LoadRepositories(ctx); err != nil {
+			ctx.ServerError("LoadRepositories", err)
+			return
+		}
+
+		for _, issue := range movedIssues {
+			if issue.RepoID != project.RepoID && issue.Repo.OwnerID != project.OwnerID {
+				ctx.ServerError("Some issue's repoID is not equal to project's repoID", errors.New("Some issue's repoID is not equal to project's repoID"))
+				return
+			}
+		}
+
+		if err = project_service.MoveIssuesOnProjectColumn(ctx, ctx.Doer, column, sortedIssueIDs); err != nil {
+			ctx.ServerError("MoveIssuesOnProjectColumn", err)
+			return
+		}
+	}
+
+	for _, repo := range form.Repos {
+		// Check if repo is already in this column
+		existingColumnIDs, err := project_model.GetColumnIDsByRepoID(ctx, repo.RepoID)
+		if err != nil {
+			ctx.ServerError("GetColumnIDsByRepoID", err)
+			return
+		}
+		
+		// If repo is in a different column, remove it from old column first
+		needsMove := false
+		for _, existingColumnID := range existingColumnIDs {
+			if existingColumnID != column.ID {
+				if err := project_model.RemoveRepoFromColumn(ctx, existingColumnID, repo.RepoID); err != nil {
+					ctx.ServerError("RemoveRepoFromColumn", err)
+					return
+				}
+				needsMove = true
+			}
+		}
+		
+		// If repo was moved from another column, add it to the new column
+		if needsMove {
+			if err := project_model.AddRepoToColumn(ctx, column.ID, repo.RepoID); err != nil {
+				ctx.ServerError("AddRepoToColumn", err)
+				return
+			}
+		}
+		
+		// Update sorting
+		if err := project_model.UpdateColumnRepoSorting(ctx, column.ID, repo.RepoID, repo.Sorting); err != nil {
+			ctx.ServerError("UpdateColumnRepoSorting", err)
+			return
+		}
+	}
+
+	ctx.JSONOK()
+}
+
+func GetColumnRepos(ctx *context.Context) {
+	columnID := ctx.PathParamInt64("columnID")
+
+	column, err := project_model.GetColumn(ctx, columnID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetColumn", project_model.IsErrProjectColumnNotExist, err)
+		return
+	}
+
+	project, err := project_model.GetProjectByID(ctx, column.ProjectID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetProjectByID", project_model.IsErrProjectNotExist, err)
+		return
+	}
+
+	if project.OwnerID != ctx.ContextUser.ID {
+		ctx.NotFound(nil)
+		return
+	}
+
+	repos, err := project_model.GetColumnReposByColumnID(ctx, columnID)
+	if err != nil {
+		ctx.ServerError("GetColumnReposByColumnID", err)
+		return
+	}
+
+	repoIDs := make([]int64, 0, len(repos))
+	for _, repo := range repos {
+		repoIDs = append(repoIDs, repo.ID)
+	}
+
+	ctx.JSON(http.StatusOK, repoIDs)
+}
+
+func BindReposToColumn(ctx *context.Context) {
+	if ctx.Doer == nil {
+		ctx.JSON(http.StatusForbidden, map[string]string{
+			"message": "Only signed in users are allowed to perform this action.",
+		})
+		return
+	}
+
+	columnID := ctx.FormInt64("column_id")
+	repoIDStr := ctx.FormString("repo_ids")
+
+	column, err := project_model.GetColumn(ctx, columnID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetColumn", project_model.IsErrProjectColumnNotExist, err)
+		return
+	}
+
+	project, err := project_model.GetProjectByID(ctx, column.ProjectID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetProjectByID", project_model.IsErrProjectNotExist, err)
+		return
+	}
+
+	if project.OwnerID != ctx.ContextUser.ID {
+		ctx.NotFound(errors.New("No permission to write to project"))
+		return
+	}
+
+	if !project.IsOrganizationProject() {
+		ctx.NotFound(errors.New("Cannot bind repos to repository project"))
+		return
+	}
+
+	if repoIDStr == "" {
+		ctx.Flash.Error(ctx.Tr("repo.projects.column.choose_repos"))
+		ctx.Redirect(project_model.ProjectLinkForOrg(ctx.ContextUser, project.ID))
+		return
+	}
+
+	repoID, err := strconv.ParseInt(repoIDStr, 10, 64)
+	if err != nil || repoID <= 0 {
+		ctx.Flash.Error(ctx.Tr("repo.projects.column.choose_repos"))
+		ctx.Redirect(project_model.ProjectLinkForOrg(ctx.ContextUser, project.ID))
+		return
+	}
+
+	// Check if repo is already bound to this column
+	existingRepos, err := project_model.GetColumnReposByColumnID(ctx, columnID)
+	if err != nil {
+		ctx.ServerError("GetColumnReposByColumnID", err)
+		return
+	}
+
+	for _, repo := range existingRepos {
+		if repo.ID == repoID {
+			ctx.Flash.Info(ctx.Tr("repo.projects.column.repo_already_bound"))
+			ctx.Redirect(project_model.ProjectLinkForOrg(ctx.ContextUser, project.ID))
+			return
+		}
+	}
+
+	// Check if repo is bound to any other column in this project
+	existingColumnIDs, err := project_model.GetColumnIDsByRepoID(ctx, repoID)
+	if err != nil {
+		ctx.ServerError("GetColumnIDsByRepoID", err)
+		return
+	}
+
+	// Remove from other columns (move instead of duplicate)
+	for _, existingColumnID := range existingColumnIDs {
+		if existingColumnID != columnID {
+			// Verify the column belongs to the same project
+			existingColumn, err := project_model.GetColumn(ctx, existingColumnID)
+			if err != nil {
+				ctx.ServerError("GetColumn", err)
+				return
+			}
+			if existingColumn.ProjectID == project.ID {
+				if err := project_model.RemoveRepoFromColumn(ctx, existingColumnID, repoID); err != nil {
+					ctx.ServerError("RemoveRepoFromColumn", err)
+					return
+				}
+			}
+		}
+	}
+
+	if err := project_model.AddRepoToColumn(ctx, columnID, repoID); err != nil {
+		ctx.ServerError("AddRepoToColumn", err)
+		return
+	}
+
+	ctx.Flash.Success(ctx.Tr("repo.projects.column.bind_repos_success"))
+	ctx.Redirect(project_model.ProjectLinkForOrg(ctx.ContextUser, project.ID))
+}
+
+func UnbindRepoFromColumn(ctx *context.Context) {
+	if ctx.Doer == nil {
+		ctx.JSON(http.StatusForbidden, map[string]string{
+			"message": "Only signed in users are allowed to perform this action.",
+		})
+		return
+	}
+
+	columnID := ctx.PathParamInt64("columnID")
+	repoID := ctx.FormInt64("repo_id")
+
+	column, err := project_model.GetColumn(ctx, columnID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetColumn", project_model.IsErrProjectColumnNotExist, err)
+		return
+	}
+
+	project, err := project_model.GetProjectByID(ctx, column.ProjectID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetProjectByID", project_model.IsErrProjectNotExist, err)
+		return
+	}
+
+	if project.OwnerID != ctx.ContextUser.ID {
+		ctx.JSON(http.StatusForbidden, map[string]string{
+			"message": "No permission to write to project",
+		})
+		return
+	}
+
+	if err := project_model.RemoveRepoFromColumn(ctx, columnID, repoID); err != nil {
+		ctx.ServerError("RemoveRepoFromColumn", err)
+		return
+	}
+
+	ctx.JSONOK()
+}
+
+func UnbindIssueFromColumn(ctx *context.Context) {
+	if ctx.Doer == nil {
+		ctx.JSON(http.StatusForbidden, map[string]string{
+			"message": "Only signed in users are allowed to perform this action.",
+		})
+		return
+	}
+
+	columnID := ctx.PathParamInt64("columnID")
+	issueID := ctx.FormInt64("issue_id")
+
+	column, err := project_model.GetColumn(ctx, columnID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetColumn", project_model.IsErrProjectColumnNotExist, err)
+		return
+	}
+
+	project, err := project_model.GetProjectByID(ctx, column.ProjectID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetProjectByID", project_model.IsErrProjectNotExist, err)
+		return
+	}
+
+	if project.OwnerID != ctx.ContextUser.ID {
+		ctx.JSON(http.StatusForbidden, map[string]string{
+			"message": "No permission to write to project",
+		})
+		return
+	}
+
+	issue, err := issues_model.GetIssueByID(ctx, issueID)
 	if err != nil {
 		ctx.NotFoundOrServerError("GetIssueByID", issues_model.IsErrIssueNotExist, err)
 		return
 	}
 
-	if len(movedIssues) != len(form.Issues) {
-		ctx.ServerError("some issues do not exist", errors.New("some issues do not exist"))
-		return
-	}
-
-	if _, err = movedIssues.LoadRepositories(ctx); err != nil {
-		ctx.ServerError("LoadRepositories", err)
-		return
-	}
-
-	for _, issue := range movedIssues {
-		if issue.RepoID != project.RepoID && issue.Repo.OwnerID != project.OwnerID {
-			ctx.ServerError("Some issue's repoID is not equal to project's repoID", errors.New("Some issue's repoID is not equal to project's repoID"))
-			return
-		}
-	}
-
-	if err = project_service.MoveIssuesOnProjectColumn(ctx, ctx.Doer, column, sortedIssueIDs); err != nil {
-		ctx.ServerError("MoveIssuesOnProjectColumn", err)
+	// Remove issue from project by setting projectID to 0
+	if err := issues_model.IssueAssignOrRemoveProject(ctx, issue, ctx.Doer, 0, 0); err != nil {
+		ctx.ServerError("IssueAssignOrRemoveProject", err)
 		return
 	}
 

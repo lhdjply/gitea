@@ -1045,13 +1045,16 @@ func registerWebRoutes(m *web.Router) {
 					m.Post("/columns/new", web.Bind(forms.EditProjectColumnForm{}), org.AddColumnToProjectPost)
 					m.Post("/add-issue", org.AddIssueToColumn)
 					m.Post("/add-pull", org.AddPullToColumn)
-					m.Group("/{columnID}", func() {
-						m.Put("", web.Bind(forms.EditProjectColumnForm{}), org.EditProjectColumn)
-						m.Delete("", org.DeleteProjectColumn)
-						m.Post("/default", org.SetDefaultProjectColumn)
-						m.Post("/move", org.MoveIssues)
-					})
-				})
+					m.Post("/bind-repos", org.BindReposToColumn)
+													m.Group("/{columnID}", func() {
+														m.Put("", web.Bind(forms.EditProjectColumnForm{}), org.EditProjectColumn)
+														m.Delete("", org.DeleteProjectColumn)
+														m.Post("/default", org.SetDefaultProjectColumn)
+														m.Post("/move", org.MoveIssues)
+														m.Get("/repos", org.GetColumnRepos)
+														m.Post("/unbind-repo", org.UnbindRepoFromColumn)
+														m.Post("/unbind-issue", org.UnbindIssueFromColumn)
+													})				})
 			}, reqSignIn, reqUnitAccess(unit.TypeProjects, perm.AccessModeWrite, true), func(ctx *context.Context) {
 				if ctx.ContextUser.IsIndividual() && ctx.ContextUser.ID != ctx.Doer.ID {
 					ctx.NotFound(nil)
