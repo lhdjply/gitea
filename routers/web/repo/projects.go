@@ -323,8 +323,38 @@ func ViewProject(ctx *context.Context) {
 		ctx.ServerError("LoadIssuesOfColumns", err)
 		return
 	}
+
+	type CardItem struct {
+		Type    string
+		Issue   *issues_model.Issue
+		Sorting int64
+	}
+
+	columnCardsMap := make(map[int64][]*CardItem)
 	for _, column := range columns {
-		column.NumIssues = int64(len(issuesMap[column.ID]))
+		cards := make([]*CardItem, 0, len(issuesMap[column.ID]))
+
+		projectIssues, err := column.GetIssues(ctx)
+		if err != nil {
+			ctx.ServerError("GetIssues", err)
+			return
+		}
+
+		for _, pi := range projectIssues {
+			for _, issue := range issuesMap[column.ID] {
+				if issue.ID == pi.IssueID {
+					cards = append(cards, &CardItem{
+						Type:    "issue",
+						Issue:   issue,
+						Sorting: pi.Sorting,
+					})
+					break
+				}
+			}
+		}
+
+		columnCardsMap[column.ID] = cards
+		column.NumIssues = int64(len(cards))
 	}
 
 	if project.CardType != project_model.CardTypeTextOnly {
@@ -420,6 +450,7 @@ func ViewProject(ctx *context.Context) {
 	ctx.Data["CanWriteProjects"] = ctx.Repo.Permission.CanWrite(unit.TypeProjects)
 	ctx.Data["Project"] = project
 	ctx.Data["IssuesMap"] = issuesMap
+	ctx.Data["ColumnCardsMap"] = columnCardsMap
 	ctx.Data["Columns"] = columns
 
 	ctx.HTML(http.StatusOK, tplProjectsView)
@@ -799,4 +830,56 @@ func AddPullToColumn(ctx *context.Context) {
 
 	ctx.Flash.Success(ctx.Tr("repo.projects.column.add_pull_success", pull.Index))
 	ctx.Redirect(project.Link(ctx))
+}
+
+// UnbindIssueFromColumn removes an issue from a project column
+func UnbindIssueFromColumn(ctx *context.Context) {
+	if ctx.Doer == nil {
+		ctx.JSON(http.StatusForbidden, map[string]string{
+			"message": "Only signed in users are allowed to perform this action.",
+		})
+		return
+	}
+
+	if !ctx.Repo.IsOwner() && !ctx.Repo.IsAdmin() && !ctx.Repo.CanAccess(perm.AccessModeWrite, unit.TypeProjects) {
+		ctx.JSON(http.StatusForbidden, map[string]string{
+			"message": "Only authorized users are allowed to perform this action.",
+		})
+		return
+	}
+
+	columnID := ctx.PathParamInt64("columnID")
+	issueID := ctx.FormInt64("issue_id")
+
+	column, err := project_model.GetColumn(ctx, columnID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetColumn", project_model.IsErrProjectColumnNotExist, err)
+		return
+	}
+
+	project, err := project_model.GetProjectByID(ctx, column.ProjectID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetProjectByID", project_model.IsErrProjectNotExist, err)
+		return
+	}
+
+	if project.RepoID != ctx.Repo.Repository.ID {
+		ctx.JSON(http.StatusForbidden, map[string]string{
+			"message": "No permission to write to project",
+		})
+		return
+	}
+
+	issue, err := issues_model.GetIssueByID(ctx, issueID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetIssueByID", issues_model.IsErrIssueNotExist, err)
+		return
+	}
+
+	if err := issues_model.IssueAssignOrRemoveProject(ctx, issue, ctx.Doer, 0, 0); err != nil {
+		ctx.ServerError("IssueAssignOrRemoveProject", err)
+		return
+	}
+
+	ctx.JSONOK()
 }
