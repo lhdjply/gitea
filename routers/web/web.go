@@ -1438,15 +1438,15 @@ func registerWebRoutes(m *web.Router) {
 							// TODO: improper name. Others are "delete project", "edit project", but this one is "move columns"
 							m.Post("/move", project.MoveColumns)
 							m.Post("/columns/new", web.Bind(forms.EditProjectColumnForm{}), repo.AddColumnToProjectPost)
-							m.Post("/add-issue", repo.AddIssueToColumn)
-							m.Post("/add-pull", repo.AddPullToColumn)
-							m.Group("/{columnID}", func() {
-								m.Put("", web.Bind(forms.EditProjectColumnForm{}), repo.EditProjectColumn)
-								m.Delete("", repo.DeleteProjectColumn)
-								m.Post("/default", repo.SetDefaultProjectColumn)
-								m.Post("/move", repo.MoveIssues)
-							})
-						})
+													m.Post("/add-issue", repo.AddIssueToColumn)
+													m.Post("/add-pull", repo.AddPullToColumn)
+													m.Group("/{columnID}", func() {
+														m.Put("", web.Bind(forms.EditProjectColumnForm{}), repo.EditProjectColumn)
+														m.Delete("", repo.DeleteProjectColumn)
+														m.Post("/default", repo.SetDefaultProjectColumn)
+														m.Post("/move", repo.MoveIssues)
+														m.Post("/unbind-issue", repo.UnbindIssueFromColumn)
+													})						})
 		}, reqRepoProjectsWriter, context.RepoMustNotBeArchived())
 	}, optSignIn, context.RepoAssignment, reqRepoProjectsReader, repo.MustEnableRepoProjects)
 	// end "/{username}/{reponame}/projects"
