@@ -128,34 +128,28 @@
 		</div>
 
 		<div class="ui bottom attached segment flex-text-block tw-flex-wrap">
-			<div class="flex-text-inline">
-				{{if .Author}}
-					{{ctx.AvatarUtils.Avatar .Author 20}}
-					{{if .Author.FullName}}
-						<a href="{{.Author.HomeLink}}"><strong>{{.Author.FullName}}</strong></a>
-					{{else}}
-						<a href="{{.Author.HomeLink}}"><strong>{{.Commit.Author.Name}}</strong></a>
-					{{end}}
-				{{else}}
-					{{ctx.AvatarUtils.AvatarByEmail .Commit.Author.Email .Commit.Author.Email 20}}
-					<strong>{{.Commit.Author.Name}}</strong>
-				{{end}}
-			</div>
-
+					<div class="flex-text-inline">
+						{{if .Author}}
+							{{ctx.AvatarUtils.Avatar .Author 20}}
+							<a href="{{.Author.HomeLink}}"><strong>{{.Author.DisplayName}}</strong></a>
+						{{else}}
+							{{ctx.AvatarUtils.AvatarByEmail .Commit.Author.Email .Commit.Author.Email 20}}
+							<strong>{{.Commit.Author.Name}}</strong>
+						{{end}}
+					</div>
 			<span class="text grey">{{DateUtils.TimeSince .Commit.Author.When}}</span>
 
 			<div class="flex-text-inline">
-				{{if or (ne .Commit.Committer.Name .Commit.Author.Name) (ne .Commit.Committer.Email .Commit.Author.Email)}}
-					<span class="text grey">{{ctx.Locale.Tr "repo.diff.committed_by"}}</span>
-					{{if and .Verification.CommittingUser .Verification.CommittingUser.ID}}
-						{{ctx.AvatarUtils.Avatar .Verification.CommittingUser 20}}
-						<a href="{{.Verification.CommittingUser.HomeLink}}"><strong>{{.Commit.Committer.Name}}</strong></a>
-					{{else}}
-						{{ctx.AvatarUtils.AvatarByEmail .Commit.Committer.Email .Commit.Committer.Name 20}}
-						<strong>{{.Commit.Committer.Name}}</strong>
-					{{end}}
-				{{end}}
-			</div>
+							{{if or (ne .Commit.Committer.Name .Commit.Author.Name) (ne .Commit.Committer.Email .Commit.Author.Email)}}
+								<span class="text grey">{{ctx.Locale.Tr "repo.diff.committed_by"}}</span>
+								{{if and .Verification.CommittingUser .Verification.CommittingUser.ID}}
+									{{ctx.AvatarUtils.Avatar .Verification.CommittingUser 20}}
+									<a href="{{.Verification.CommittingUser.HomeLink}}"><strong>{{.Verification.CommittingUser.DisplayName}}</strong></a>
+								{{else}}
+									{{ctx.AvatarUtils.AvatarByEmail .Commit.Committer.Email .Commit.Committer.Name 20}}
+									<strong>{{.Commit.Committer.Name}}</strong>
+								{{end}}
+							{{end}}			</div>
 
 			{{if .Verification}}
 				{{template "repo/commit_sign_badge" dict "CommitSignVerification" .Verification}}
@@ -183,18 +177,13 @@
 			<div class="ui top attached header segment git-notes">
 				{{svg "octicon-note" 16 "tw-mr-2"}}
 				{{ctx.Locale.Tr "repo.diff.git-notes"}}:
-				{{if .NoteAuthor}}
-					<a href="{{.NoteAuthor.HomeLink}}">
-						{{if .NoteAuthor.FullName}}
-							<strong>{{.NoteAuthor.FullName}}</strong>
-						{{else}}
-							<strong>{{.NoteCommit.Author.Name}}</strong>
-						{{end}}
-					</a>
-				{{else}}
-					<strong>{{.NoteCommit.Author.Name}}</strong>
-				{{end}}
-				<span class="text grey">{{DateUtils.TimeSince .NoteCommit.Author.When}}</span>
+							{{if .NoteAuthor}}
+								<a href="{{.NoteAuthor.HomeLink}}">
+									<strong>{{.NoteAuthor.DisplayName}}</strong>
+								</a>
+							{{else}}
+								<strong>{{.NoteCommit.Author.Name}}</strong>
+							{{end}}				<span class="text grey">{{DateUtils.TimeSince .NoteCommit.Author.When}}</span>
 			</div>
 			<div class="ui bottom attached info segment git-notes">
 				<pre class="commit-body">{{.NoteRendered | SanitizeHTML}}</pre>
