@@ -1048,6 +1048,10 @@ func BindReposToColumn(ctx *context.Context) {
 			// Verify the column belongs to the same project
 			existingColumn, err := project_model.GetColumn(ctx, existingColumnID)
 			if err != nil {
+				if project_model.IsErrProjectColumnNotExist(err) {
+					// Column was deleted, skip it
+					continue
+				}
 				ctx.ServerError("GetColumn", err)
 				return
 			}
