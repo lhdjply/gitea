@@ -1233,10 +1233,10 @@ func GetDiffForRender(ctx context.Context, repoLink string, gitRepo *git.Reposit
 		shouldFullFileHighlight := !setting.Git.DisableDiffHighlight && attrDiff.Value() == ""
 		if shouldFullFileHighlight {
 			if limitedContent.LeftContent != nil && limitedContent.LeftContent.buf.Len() < MaxDiffHighlightEntireFileSize {
-				diffFile.highlightedLeftLines = highlightCodeLines(diffFile, true /* left */, limitedContent.LeftContent.buf.String())
+				diffFile.highlightedLeftLines = highlightCodeLines(diffFile, true /* left */, limitedContent.LeftContent.buf.Bytes())
 			}
 			if limitedContent.RightContent != nil && limitedContent.RightContent.buf.Len() < MaxDiffHighlightEntireFileSize {
-				diffFile.highlightedRightLines = highlightCodeLines(diffFile, false /* right */, limitedContent.RightContent.buf.String())
+				diffFile.highlightedRightLines = highlightCodeLines(diffFile, false /* right */, limitedContent.RightContent.buf.Bytes())
 			}
 		}
 	}
@@ -1244,9 +1244,35 @@ func GetDiffForRender(ctx context.Context, repoLink string, gitRepo *git.Reposit
 	return diff, nil
 }
 
-func highlightCodeLines(diffFile *DiffFile, isLeft bool, content string) map[int]template.HTML {
+func splitHighlightLines(buf []byte) (ret [][]byte) {
+	lineCount := bytes.Count(buf, []byte("\n")) + 1
+	ret = make([][]byte, 0, lineCount)
+	nlTagClose := []byte("\n</")
+	for {
+		pos := bytes.IndexByte(buf, '\n')
+		if pos == -1 {
+			ret = append(ret, buf)
+			return ret
+		}
+		// Chroma highlighting output sometimes have "</span>" right after \n, sometimes before.
+		// * "<span>text\n</span>"
+		// * "<span>text</span>\n"
+		if bytes.HasPrefix(buf[pos:], nlTagClose) {
+			pos1 := bytes.IndexByte(buf[pos:], '>')
+			if pos1 != -1 {
+				pos += pos1
+			}
+		}
+		ret = append(ret, buf[:pos+1])
+		buf = buf[pos+1:]
+	}
+}
+
+func highlightCodeLines(diffFile *DiffFile, isLeft bool, rawContent []byte) map[int]template.HTML {
+	contentUTF8, _ := charset.ToUTF8(rawContent, charset.ConvertOpts{})
+	content := util.UnsafeBytesToString(contentUTF8)
 	highlightedNewContent, _ := highlight.Code(diffFile.Name, diffFile.Language, content)
-	splitLines := strings.Split(string(highlightedNewContent), "\n")
+	splitLines := splitHighlightLines([]byte(highlightedNewContent))
 	lines := make(map[int]template.HTML, len(splitLines))
 	// only save the highlighted lines we need, but not the whole file, to save memory
 	for _, sec := range diffFile.Sections {
@@ -1344,15 +1370,17 @@ outer:
 		}
 	}
 
-	// Explicitly store files that have changed in the database, if any is present at all.
-	// This has the benefit that the "Has Changed" attribute will be present as long as the user does not explicitly mark this file as viewed, so it will even survive a page reload after marking another file as viewed.
-	// On the other hand, this means that even if a commit reverting an unseen change is committed, the file will still be seen as changed.
 	if len(filesChangedSinceLastDiff) > 0 {
-		err := pull_model.UpdateReviewState(ctx, review.UserID, review.PullID, review.CommitSHA, filesChangedSinceLastDiff)
+		// Explicitly store files that have changed in the database, if any is present at all.
+		// This has the benefit that the "Has Changed" attribute will be present as long as the user does not explicitly mark this file as viewed, so it will even survive a page reload after marking another file as viewed.
+		// On the other hand, this means that even if a commit reverting an unseen change is committed, the file will still be seen as changed.
+		updatedReview, err := pull_model.UpdateReviewState(ctx, review.UserID, review.PullID, review.CommitSHA, filesChangedSinceLastDiff)
 		if err != nil {
 			log.Warn("Could not update review for user %d, pull %d, commit %s and the changed files %v: %v", review.UserID, review.PullID, review.CommitSHA, filesChangedSinceLastDiff, err)
 			return nil, err
 		}
+		// Update the local review to reflect the changes immediately
+		review = updatedReview
 	}
 
 	return review, nil
