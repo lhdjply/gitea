@@ -5,7 +5,7 @@
 	<span class="author-wrapper">
 	{{- if .LatestCommitUser -}}
 		{{- ctx.AvatarUtils.Avatar .LatestCommitUser 20 "tw-mr-2" -}}
-		<strong>{{.LatestCommitUser.GetShortDisplayNameLinkHTML}}</strong>
+		<strong><a href="{{.LatestCommitUser.HomeLink}}" style="color: black;">{{.LatestCommitUser.DisplayName}}</a></strong>
 	{{- else if .LatestCommit.Author -}}
 		{{- ctx.AvatarUtils.AvatarByEmail .LatestCommit.Author.Email .LatestCommit.Author.Name 20 "tw-mr-2" -}}
 		<strong>{{.LatestCommit.Author.Name}}</strong>

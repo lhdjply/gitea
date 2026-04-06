@@ -75,21 +75,21 @@
 				{{if .Issue.PullRequest.HasMerged}}
 					{{$mergedStr:= DateUtils.TimeSince .Issue.PullRequest.MergedUnix}}
 					{{if .Issue.OriginalAuthor}}
-						{{.Issue.OriginalAuthor}}
-						<span class="pull-desc">{{ctx.Locale.Tr "repo.pulls.merged_title_desc" .NumCommits $headHref $baseHref $mergedStr}}</span>
-					{{else}}
-						<a {{if gt .Issue.PullRequest.Merger.ID 0}}href="{{.Issue.PullRequest.Merger.HomeLink}}"{{end}}>{{.Issue.PullRequest.Merger.GetDisplayName}}</a>
-						<span class="pull-desc">{{ctx.Locale.Tr "repo.pulls.merged_title_desc" .NumCommits $headHref $baseHref $mergedStr}}</span>
-					{{end}}
+				{{.Issue.OriginalAuthor}}
+				<span class="pull-desc">{{ctx.Locale.Tr "repo.pulls.merged_title_desc" .NumCommits $headHref $baseHref $mergedStr}}</span>
+			{{else}}
+				<a {{if gt .Issue.PullRequest.Merger.ID 0}}href="{{.Issue.PullRequest.Merger.HomeLink}}"{{end}}>{{.Issue.PullRequest.Merger.DisplayName}}</a>
+				<span class="pull-desc">{{ctx.Locale.Tr "repo.pulls.merged_title_desc" .NumCommits $headHref $baseHref $mergedStr}}</span>
+			{{end}}
 				{{else}}
 					{{if .Issue.OriginalAuthor}}
-						<span id="pull-desc-display" class="pull-desc">{{.Issue.OriginalAuthor}} {{ctx.Locale.Tr "repo.pulls.title_desc" .NumCommits $headHref $baseHref}}</span>
-					{{else}}
-						<span id="pull-desc-display" class="pull-desc">
-							<a {{if gt .Issue.Poster.ID 0}}href="{{.Issue.Poster.HomeLink}}"{{end}}>{{.Issue.Poster.GetDisplayName}}</a>
-							{{ctx.Locale.Tr "repo.pulls.title_desc" .NumCommits $headHref $baseHref}}
-						</span>
-					{{end}}
+					<span id="pull-desc-display" class="pull-desc">{{.Issue.OriginalAuthor}} {{ctx.Locale.Tr "repo.pulls.title_desc" .NumCommits $headHref $baseHref}}</span>
+				{{else}}
+					<span id="pull-desc-display" class="pull-desc">
+						<a {{if gt .Issue.Poster.ID 0}}href="{{.Issue.Poster.HomeLink}}"{{end}}>{{.Issue.Poster.DisplayName}}</a>
+						{{ctx.Locale.Tr "repo.pulls.title_desc" .NumCommits $headHref $baseHref}}
+					</span>
+				{{end}}
 					<span id="pull-desc-editor" class="tw-hidden flex-text-block" data-target-update-url="{{$.RepoLink}}/pull/{{.Issue.Index}}/target_branch">
 						<div class="ui floating filter dropdown">
 							<div class="ui basic small button tw-mr-0">
@@ -124,12 +124,12 @@
 				{{$createdStr:= DateUtils.TimeSince .Issue.CreatedUnix}}
 				<span class="time-desc">
 					{{if .Issue.OriginalAuthor}}
-						{{ctx.Locale.Tr "repo.issues.opened_by_fake" $createdStr .Issue.OriginalAuthor}}
-					{{else if gt .Issue.Poster.ID 0}}
-						{{ctx.Locale.Tr "repo.issues.opened_by" $createdStr .Issue.Poster.HomeLink .Issue.Poster.GetDisplayName}}
-					{{else}}
-						{{ctx.Locale.Tr "repo.issues.opened_by_fake" $createdStr .Issue.Poster.GetDisplayName}}
-					{{end}}
+				{{ctx.Locale.Tr "repo.issues.opened_by_fake" $createdStr .Issue.OriginalAuthor}}
+			{{else if gt .Issue.Poster.ID 0}}
+				{{ctx.Locale.Tr "repo.issues.opened_by" $createdStr .Issue.Poster.HomeLink .Issue.Poster.DisplayName}}
+			{{else}}
+				{{ctx.Locale.Tr "repo.issues.opened_by_fake" $createdStr .Issue.Poster.DisplayName}}
+			{{end}}
 					·
 					{{ctx.Locale.TrN .Issue.NumComments "repo.issues.num_comments_1" "repo.issues.num_comments" .Issue.NumComments}}
 				</span>
