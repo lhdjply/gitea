@@ -131,11 +131,7 @@
 			<div class="flex-text-inline">
 				{{if .Author}}
 					{{ctx.AvatarUtils.Avatar .Author 20}}
-					{{if .Author.FullName}}
-						<a href="{{.Author.HomeLink}}"><strong>{{.Author.FullName}}</strong></a>
-					{{else}}
-						<a href="{{.Author.HomeLink}}"><strong>{{.Commit.Author.Name}}</strong></a>
-					{{end}}
+					<a href="{{.Author.HomeLink}}"><strong>{{.Author.DisplayName}}</strong></a>
 				{{else}}
 					{{ctx.AvatarUtils.AvatarByEmail .Commit.Author.Email .Commit.Author.Email 20}}
 					<strong>{{.Commit.Author.Name}}</strong>
@@ -149,7 +145,7 @@
 					<span class="text grey">{{ctx.Locale.Tr "repo.diff.committed_by"}}</span>
 					{{if and .Verification.CommittingUser .Verification.CommittingUser.ID}}
 						{{ctx.AvatarUtils.Avatar .Verification.CommittingUser 20}}
-						<a href="{{.Verification.CommittingUser.HomeLink}}"><strong>{{.Commit.Committer.Name}}</strong></a>
+						<a href="{{.Verification.CommittingUser.HomeLink}}"><strong>{{.Verification.CommittingUser.DisplayName}}</strong></a>
 					{{else}}
 						{{ctx.AvatarUtils.AvatarByEmail .Commit.Committer.Email .Commit.Committer.Name 20}}
 						<strong>{{.Commit.Committer.Name}}</strong>
@@ -185,11 +181,7 @@
 				{{ctx.Locale.Tr "repo.diff.git-notes"}}:
 				{{if .NoteAuthor}}
 					<a href="{{.NoteAuthor.HomeLink}}">
-						{{if .NoteAuthor.FullName}}
-							<strong>{{.NoteAuthor.FullName}}</strong>
-						{{else}}
-							<strong>{{.NoteCommit.Author.Name}}</strong>
-						{{end}}
+						<strong>{{.NoteAuthor.DisplayName}}</strong>
 					</a>
 				{{else}}
 					<strong>{{.NoteCommit.Author.Name}}</strong>
