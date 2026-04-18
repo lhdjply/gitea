@@ -19,6 +19,7 @@ import (
 	"gitea.dev/modules/templates"
 	"gitea.dev/modules/web"
 	"gitea.dev/routers/web/shared/issue"
+	shared_project "gitea.dev/routers/web/shared/project"
 	shared_user "gitea.dev/routers/web/shared/user"
 	"gitea.dev/services/audit"
 	"gitea.dev/services/context"
@@ -349,8 +350,13 @@ func ViewProject(ctx *context.Context) {
 		ctx.ServerError("LoadIssuesOfColumns", err)
 		return
 	}
+	columnCardsMap, err := shared_project.BuildColumnCardsMap(ctx, project, columns, issuesMap)
+	if err != nil {
+		ctx.ServerError("BuildColumnCardsMap", err)
+		return
+	}
 	for _, column := range columns {
-		column.NumIssues = int64(len(issuesMap[column.ID]))
+		column.NumIssues = int64(len(columnCardsMap[column.ID]))
 	}
 
 	if project.CardType != project_model.CardTypeTextOnly {
@@ -462,9 +468,9 @@ func ViewProject(ctx *context.Context) {
 
 	var availableRepos []*repo_model.Repository
 	if project.OwnerID > 0 {
-		cond := builder.Eq{"owner_id": project.OwnerID}.And(repo_model.AccessibleRepositoryCondition(ctx.Doer, unit.TypeIssues))
-		if err := db.GetEngine(ctx).Where(cond).Find(&availableRepos); err != nil {
-			ctx.ServerError("FindAvailableRepositories", err)
+		availableRepos, err = repo_model.GetOrgRepositories(ctx, project.OwnerID)
+		if err != nil {
+			ctx.ServerError("GetOrgRepositories", err)
 			return
 		}
 	}
@@ -475,7 +481,7 @@ func ViewProject(ctx *context.Context) {
 	ctx.Data["PageIsViewProjects"] = true
 	ctx.Data["CanWriteProjects"] = canWriteProjects(ctx)
 	ctx.Data["Project"] = project
-	ctx.Data["IssuesMap"] = issuesMap
+	ctx.Data["ColumnCardsMap"] = columnCardsMap
 	ctx.Data["Columns"] = columns
 	ctx.Data["Title"] = fmt.Sprintf("%s - %s", project.Title, ctx.ContextUser.DisplayName())
 

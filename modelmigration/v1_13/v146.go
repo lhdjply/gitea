@@ -68,6 +68,18 @@ func AddProjectsInfo(_ context.Context, x base.EngineMigration) error {
 		return err
 	}
 
+	// ProjectBoardRepo saves relation from repository to a project board
+	type ProjectBoardRepo struct {
+		ID       int64 `xorm:"pk autoincr"`
+		ColumnID int64 `xorm:"UNIQUE(s) INDEX NOT NULL"`
+		RepoID   int64 `xorm:"UNIQUE(s) INDEX NOT NULL"`
+		Sorting  int64 `xorm:"NOT NULL DEFAULT 0"`
+	}
+
+	if err := x.Sync(new(ProjectBoardRepo)); err != nil {
+		return err
+	}
+
 	type ProjectBoard struct {
 		ID      int64 `xorm:"pk autoincr"`
 		Title   string
