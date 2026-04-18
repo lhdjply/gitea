@@ -329,11 +329,14 @@ func addProjectBoardRoutes(m *web.Router) {
 	// TODO: improper name. Others are "delete project", "edit project", but this one is "move columns"
 	m.Post("/move", project.MoveColumns)
 	m.Post("/columns/new", web.Bind[*forms.EditProjectColumnForm](), project.AddColumnToProjectPost)
+	m.Post("/add-issue", project.AddIssueToColumn)
+	m.Post("/add-pull", project.AddPullToColumn)
 	m.Group("/{columnID}", func() {
 		m.Put("", web.Bind[*forms.EditProjectColumnForm](), project.EditProjectColumn)
 		m.Delete("", project.DeleteProjectColumn)
 		m.Post("/default", project.SetDefaultProjectColumn)
 		m.Post("/move", project.MoveIssues)
+		m.Post("/unbind-issue", project.UnbindIssueFromColumn)
 	})
 }
 
