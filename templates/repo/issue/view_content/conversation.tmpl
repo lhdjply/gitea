@@ -117,11 +117,11 @@ The variables in "ctx.Data" are different in each case, making this template fra
 			<div class="flex-text-block tw-flex-wrap tw-my-2">
 				<div class="tw-flex-1">
 					{{if $resolved}}
-						<div class="ui grey text">
-							{{svg "octicon-check" 16 "tw-mr-1"}}
-							<b>{{$resolveDoer.Name}}</b> {{ctx.Locale.Tr "repo.issues.review.resolved_by"}}
-						</div>
-					{{end}}
+							<div class="ui grey text">
+								{{svg "octicon-check" 16 "tw-mr-1"}}
+								<b>{{$resolveDoer.DisplayName}}</b> {{ctx.Locale.Tr "repo.issues.review.resolved_by"}}
+							</div>
+						{{end}}
 				</div>
 				<div class="flex-text-block">
 					{{if and $.CanMarkConversation $hasReview (not $isReviewPending)}}

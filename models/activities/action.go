@@ -226,6 +226,10 @@ func (a *Action) ShortActUserName(ctx context.Context) string {
 
 // GetActDisplayName gets the action's display name based on DEFAULT_SHOW_FULL_NAME, or falls back to the username if it is blank.
 func (a *Action) GetActDisplayName(ctx context.Context) string {
+	a.LoadActUser(ctx)
+	if len(strings.TrimSpace(a.ActUser.DisplayName())) > 0 {
+		return a.ActUser.DisplayName()
+	}
 	if setting.UI.DefaultShowFullName {
 		trimmedFullName := strings.TrimSpace(a.GetActFullName(ctx))
 		if len(trimmedFullName) > 0 {
@@ -237,6 +241,10 @@ func (a *Action) GetActDisplayName(ctx context.Context) string {
 
 // GetActDisplayNameTitle gets the action's display name used for the title (tooltip) based on DEFAULT_SHOW_FULL_NAME
 func (a *Action) GetActDisplayNameTitle(ctx context.Context) string {
+	a.LoadActUser(ctx)
+	if len(strings.TrimSpace(a.ActUser.DisplayName())) > 0 {
+		return a.ActUser.DisplayName()
+	}
 	if setting.UI.DefaultShowFullName {
 		return a.ShortActUserName(ctx)
 	}
