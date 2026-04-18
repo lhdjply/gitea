@@ -117,10 +117,10 @@
 					{{ctx.Locale.Tr "repo.issues.action_assignee_no_select"}}
 				</div>
 				{{range .Assignees}}
-					<div class="item issue-action" data-element-id="{{.ID}}" data-url="{{$.RepoLink}}/issues/assignee">
-						{{ctx.AvatarUtils.Avatar . 20}} {{.GetDisplayName}}
-					</div>
-				{{end}}
+				<div class="item issue-action" data-element-id="{{.ID}}" data-url="{{$.RepoLink}}/issues/assignee">
+					{{ctx.AvatarUtils.Avatar . 20}} {{.DisplayName}}
+				</div>
+			{{end}}
 			</div>
 		</div>
 	{{end}}
