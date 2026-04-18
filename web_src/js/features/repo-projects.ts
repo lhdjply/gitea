@@ -20,12 +20,29 @@ async function moveIssue({item, from, to, oldIndex}: SortableEvent): Promise<voi
   updateIssueCount(from);
   updateIssueCount(to);
 
-  const columnSorting = {
-    issues: Array.from(columnCards, (card, i) => ({
-      issueID: parseInt(card.getAttribute('data-issue')!),
-      sorting: i,
-    })),
-  };
+  const issues = [];
+  const repos = [];
+  
+  Array.from(columnCards).forEach((card, i) => {
+    const issueID = card.getAttribute('data-issue');
+    const repoID = card.getAttribute('data-repo');
+    
+    if (issueID) {
+      issues.push({
+        issueID: parseInt(issueID),
+        sorting: i,
+      });
+    } else if (repoID) {
+      repos.push({
+        repoID: parseInt(repoID),
+        sorting: i,
+      });
+    }
+  });
+
+  const columnSorting = {issues, repos};
+  
+  console.log('Moving cards:', columnSorting);
 
   try {
     await POST(`${to.getAttribute('data-url')}/move`, {
@@ -186,6 +203,7 @@ export function initRepoProjectsView(): void {
     initRepoProjectAddIssueModal();
     initRepoProjectAddPullModal();
     initRepoProjectUnbindButton();
+    initRepoProjectBindRepoModal();
   });
 }
 
@@ -325,16 +343,35 @@ function initRepoProjectAddPullModal(): void {
   }
 }
 
+function initRepoProjectBindRepoModal(): void {
+  queryElems(document, '.show-bind-repo-modal', (el) => {
+    el.addEventListener('click', () => {
+      const columnId = el.getAttribute('data-modal-column-id');
+      const columnIdInput = document.querySelector<HTMLInputElement>('#bind-repo-column-id');
+      if (columnId && columnIdInput) {
+        columnIdInput.value = columnId;
+      }
+
+      const select = document.querySelector<HTMLSelectElement>('#bind-repos');
+      if (select) {
+        select.value = '';
+      }
+    });
+  });
+}
+
 function initRepoProjectUnbindButton(): void {
   queryElems(document, '.issue-card-unbind', (el) => {
     el.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
 
+      const cardType = el.getAttribute('data-card-type');
       const id = el.getAttribute('data-id');
       const columnId = el.getAttribute('data-column-id');
 
-      if (!confirm('Are you sure you want to remove this issue from the project?')) {
+      const message = window.config.i18n['repo.projects.column.unbind_confirm'];
+      if (!confirm(message)) {
         return;
       }
 
@@ -343,10 +380,19 @@ function initRepoProjectUnbindButton(): void {
       try {
         const projectBoardUrl = document.querySelector('#project-board')?.getAttribute('data-url') || '';
         const projectLink = projectBoardUrl.replace(/\/move$/, '');
-        const response = await POST(`${projectLink}/${columnId}/unbind-issue`, {
-          data: new URLSearchParams({issue_id: id!}),
-          headers: {'X-Csrf-Token': csrfToken},
-        });
+
+        let response;
+        if (cardType === 'repo') {
+          response = await POST(`${projectLink}/${columnId}/unbind-repo`, {
+            data: new URLSearchParams({repo_id: id!}),
+            headers: {'X-Csrf-Token': csrfToken},
+          });
+        } else {
+          response = await POST(`${projectLink}/${columnId}/unbind-issue`, {
+            data: new URLSearchParams({issue_id: id!}),
+            headers: {'X-Csrf-Token': csrfToken},
+          });
+        }
 
         if (response.ok) {
           const card = el.closest('.issue-card');
