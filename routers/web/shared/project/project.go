@@ -4,7 +4,10 @@
 package project
 
 import (
+	"cmp"
 	"errors"
+	"net/http"
+	"slices"
 
 	issues_model "gitea.dev/models/issues"
 	access_model "gitea.dev/models/perm/access"
@@ -162,6 +165,10 @@ func MoveIssues(ctx *context.Context) {
 			IssueID int64 `json:"issueID"`
 			Sorting int64 `json:"sorting"`
 		} `json:"issues"`
+		Repos []struct {
+			RepoID  int64 `json:"repoID"`
+			Sorting int64 `json:"sorting"`
+		} `json:"repos"`
 	}
 
 	form := &movedIssuesForm{}
@@ -176,32 +183,45 @@ func MoveIssues(ctx *context.Context) {
 		issueIDs = append(issueIDs, issue.IssueID)
 		sortedIssueIDs[issue.Sorting] = issue.IssueID
 	}
-	movedIssues, err := issues_model.GetIssuesByIDs(ctx, issueIDs)
-	if err != nil {
-		ctx.NotFoundOrServerError("GetIssueByID", issues_model.IsErrIssueNotExist, err)
-		return
-	}
+	if len(issueIDs) > 0 {
+		movedIssues, err := issues_model.GetIssuesByIDs(ctx, issueIDs)
+		if err != nil {
+			ctx.NotFoundOrServerError("GetIssueByID", issues_model.IsErrIssueNotExist, err)
+			return
+		}
 
-	if len(movedIssues) != len(form.Issues) {
-		ctx.ServerError("some issues do not exist", errors.New("some issues do not exist"))
-		return
-	}
+		if len(movedIssues) != len(form.Issues) {
+			ctx.ServerError("some issues do not exist", errors.New("some issues do not exist"))
+			return
+		}
 
-	if _, err = movedIssues.LoadRepositories(ctx); err != nil {
-		ctx.ServerError("LoadRepositories", err)
-		return
-	}
+		if _, err = movedIssues.LoadRepositories(ctx); err != nil {
+			ctx.ServerError("LoadRepositories", err)
+			return
+		}
 
-	for _, issue := range movedIssues {
-		if !project.CanBeAccessedByOwnerRepo(issue.Repo.OwnerID, issue.Repo) {
-			ctx.ServerError("Some issue's repoID is not equal to project's repoID", errors.New("Some issue's repoID is not equal to project's repoID"))
+		for _, issue := range movedIssues {
+			if !project.CanBeAccessedByOwnerRepo(issue.Repo.OwnerID, issue.Repo) {
+				ctx.ServerError("Some issue's repoID is not equal to project's repoID", errors.New("Some issue's repoID is not equal to project's repoID"))
+				return
+			}
+		}
+
+		if err = project_service.MoveIssuesOnProjectColumn(ctx, ctx.Doer, column, sortedIssueIDs); err != nil {
+			ctx.ServerError("MoveIssuesOnProjectColumn", err)
 			return
 		}
 	}
 
-	if err = project_service.MoveIssuesOnProjectColumn(ctx, ctx.Doer, column, sortedIssueIDs); err != nil {
-		ctx.ServerError("MoveIssuesOnProjectColumn", err)
-		return
+	for _, repo := range form.Repos {
+		if _, err := bindRepoToColumn(ctx, project, column, repo.RepoID); err != nil {
+			ctx.ServerError("BindRepoToColumn", err)
+			return
+		}
+		if err := project_model.UpdateColumnRepoSorting(ctx, column.ID, repo.RepoID, repo.Sorting); err != nil {
+			ctx.ServerError("UpdateColumnRepoSorting", err)
+			return
+		}
 	}
 
 	ctx.JSONOK()
@@ -209,7 +229,7 @@ func MoveIssues(ctx *context.Context) {
 
 // findCardRepo returns the repository a card is added from: on a repository board the board's own
 // repository, on an owner board the repository selected in the form.
-func findCardRepo(ctx *context.Context, project *project_model.Project, unitType unit.Type) *repo_model.Repository {
+func findCardRepo(ctx *context.Context, unitType unit.Type) *repo_model.Repository {
 	if ctx.Repo != nil && ctx.Repo.Repository != nil {
 		return ctx.Repo.Repository
 	}
@@ -217,10 +237,6 @@ func findCardRepo(ctx *context.Context, project *project_model.Project, unitType
 	repository, err := repo_model.GetRepositoryByID(ctx, ctx.FormInt64("repo"))
 	if err != nil {
 		ctx.NotFoundOrServerError("GetRepositoryByID", repo_model.IsErrRepoNotExist, err)
-		return nil
-	}
-	if repository.OwnerID != project.OwnerID {
-		ctx.NotFound(errors.New("repository does not belong to the project owner"))
 		return nil
 	}
 
@@ -253,7 +269,7 @@ func addCardToColumn(ctx *context.Context, isPull bool) {
 		unitType, number = unit.TypePullRequests, ctx.FormInt64("pull_number")
 	}
 
-	repository := findCardRepo(ctx, project, unitType)
+	repository := findCardRepo(ctx, unitType)
 	if ctx.Written() {
 		return
 	}
@@ -307,4 +323,158 @@ func UnbindIssueFromColumn(ctx *context.Context) {
 	}
 
 	ctx.JSONOK()
+}
+
+// bindRepoToColumn detaches the repository from the project's other columns and binds it to the given
+// column, so a repository stays in one column per project. It reports whether it already was bound there.
+func bindRepoToColumn(ctx *context.Context, project *project_model.Project, column *project_model.Column, repoID int64) (bool, error) {
+	columnIDs, err := project_model.GetColumnIDsByRepoID(ctx, repoID)
+	if err != nil {
+		return false, err
+	}
+
+	for _, columnID := range columnIDs {
+		if columnID == column.ID {
+			continue
+		}
+		otherColumn, err := project_model.GetColumn(ctx, columnID)
+		if err != nil {
+			if project_model.IsErrProjectColumnNotExist(err) {
+				continue
+			}
+			return false, err
+		}
+		if otherColumn.ProjectID != project.ID {
+			continue
+		}
+		if err := project_model.RemoveRepoFromColumn(ctx, columnID, repoID); err != nil {
+			return false, err
+		}
+	}
+
+	if slices.Contains(columnIDs, column.ID) {
+		return true, nil
+	}
+	return false, project_model.AddRepoToColumn(ctx, column.ID, repoID)
+}
+
+func BindReposToColumn(ctx *context.Context) {
+	project := findProject(ctx)
+	if ctx.Written() {
+		return
+	}
+	if project.IsRepositoryProject() {
+		ctx.NotFound(errors.New("a repository project cannot bind repositories"))
+		return
+	}
+
+	column, err := project_model.GetColumnByIDAndProjectID(ctx, ctx.FormInt64("column_id"), project.ID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetColumnByIDAndProjectID", project_model.IsErrProjectColumnNotExist, err)
+		return
+	}
+
+	repoID := ctx.FormInt64("repo_ids")
+	if repoID <= 0 {
+		ctx.Flash.Error(ctx.Tr("repo.projects.column.choose_repos"))
+		ctx.Redirect(project.Link(ctx))
+		return
+	}
+	repository, err := repo_model.GetRepositoryByID(ctx, repoID)
+	if err != nil {
+		ctx.NotFoundOrServerError("GetRepositoryByID", repo_model.IsErrRepoNotExist, err)
+		return
+	}
+	if repository.OwnerID != project.OwnerID {
+		ctx.NotFound(errors.New("repository does not belong to the project owner"))
+		return
+	}
+
+	alreadyBound, err := bindRepoToColumn(ctx, project, column, repoID)
+	if err != nil {
+		ctx.ServerError("BindRepoToColumn", err)
+		return
+	}
+
+	if alreadyBound {
+		ctx.Flash.Info(ctx.Tr("repo.projects.column.repo_already_bound"))
+	} else {
+		ctx.Flash.Success(ctx.Tr("repo.projects.column.bind_repos_success"))
+	}
+	ctx.Redirect(project.Link(ctx))
+}
+
+func GetColumnRepos(ctx *context.Context) {
+	_, column := findColumn(ctx)
+	if ctx.Written() {
+		return
+	}
+
+	repos, err := project_model.GetColumnReposByColumnID(ctx, column.ID)
+	if err != nil {
+		ctx.ServerError("GetColumnReposByColumnID", err)
+		return
+	}
+
+	repoIDs := make([]int64, 0, len(repos))
+	for _, repo := range repos {
+		repoIDs = append(repoIDs, repo.ID)
+	}
+	ctx.JSON(http.StatusOK, repoIDs)
+}
+
+func UnbindRepoFromColumn(ctx *context.Context) {
+	_, column := findColumn(ctx)
+	if ctx.Written() {
+		return
+	}
+
+	if err := project_model.RemoveRepoFromColumn(ctx, column.ID, ctx.FormInt64("repo_id")); err != nil {
+		ctx.ServerError("RemoveRepoFromColumn", err)
+		return
+	}
+
+	ctx.JSONOK()
+}
+
+type CardItem struct {
+	Type    string
+	Repo    *repo_model.Repository
+	Issue   *issues_model.Issue
+	Sorting int64
+}
+
+// BuildColumnCardsMap groups a board's cards by column: the repositories bound to an owner board plus
+// the issues of the project, ordered the way the board renders them.
+func BuildColumnCardsMap(ctx *context.Context, project *project_model.Project, columns []*project_model.Column, issuesMap map[int64]issues_model.IssueList) (map[int64][]*CardItem, error) {
+	columnCardsMap := make(map[int64][]*CardItem, len(columns))
+	for _, column := range columns {
+		cards := make([]*CardItem, 0, len(issuesMap[column.ID]))
+		if !project.IsRepositoryProject() {
+			reposWithSorting, err := project_model.GetColumnReposWithSorting(ctx, column.ID)
+			if err != nil {
+				return nil, err
+			}
+			for _, repoWithSorting := range reposWithSorting {
+				cards = append(cards, &CardItem{Type: "repo", Repo: repoWithSorting.Repo, Sorting: repoWithSorting.Sorting})
+			}
+		}
+
+		projectIssues, err := column.GetIssues(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, projectIssue := range projectIssues {
+			for _, issue := range issuesMap[column.ID] {
+				if issue.ID == projectIssue.IssueID {
+					cards = append(cards, &CardItem{Type: "issue", Issue: issue, Sorting: projectIssue.Sorting})
+					break
+				}
+			}
+		}
+
+		slices.SortStableFunc(cards, func(a, b *CardItem) int { return cmp.Compare(a.Sorting, b.Sorting) })
+		columnCardsMap[column.ID] = cards
+	}
+	return columnCardsMap, nil
 }
