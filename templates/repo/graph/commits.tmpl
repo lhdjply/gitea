@@ -42,9 +42,10 @@
 
 					<span class="flex-text-inline tw-text-12">
 						{{if $commit.User}}
-							{{ctx.AvatarUtils.Avatar $commit.User 18}}
-							{{$commit.User.GetShortDisplayNameLinkHTML}}
-						{{else}}
+
+						{{ctx.AvatarUtils.Avatar $commit.User 18}}
+						<a href="{{$commit.User.HomeLink}}" style="color: black;"><strong>{{$commit.User.DisplayName}}</strong></a>
+					{{else}}
 							{{$gitUserName := $commit.Commit.Author.Name}}
 							{{ctx.AvatarUtils.AvatarByEmail $commit.Commit.Author.Email $gitUserName 18}}
 							{{$gitUserName}}
