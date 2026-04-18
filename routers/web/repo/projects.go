@@ -323,8 +323,38 @@ func ViewProject(ctx *context.Context) {
 		ctx.ServerError("LoadIssuesOfColumns", err)
 		return
 	}
+
+	type CardItem struct {
+		Type    string
+		Issue   *issues_model.Issue
+		Sorting int64
+	}
+
+	columnCardsMap := make(map[int64][]*CardItem)
 	for _, column := range columns {
-		column.NumIssues = int64(len(issuesMap[column.ID]))
+		cards := make([]*CardItem, 0, len(issuesMap[column.ID]))
+
+		projectIssues, err := column.GetIssues(ctx)
+		if err != nil {
+			ctx.ServerError("GetIssues", err)
+			return
+		}
+
+		for _, pi := range projectIssues {
+			for _, issue := range issuesMap[column.ID] {
+				if issue.ID == pi.IssueID {
+					cards = append(cards, &CardItem{
+						Type:    "issue",
+						Issue:   issue,
+						Sorting: pi.Sorting,
+					})
+					break
+				}
+			}
+		}
+
+		columnCardsMap[column.ID] = cards
+		column.NumIssues = int64(len(cards))
 	}
 
 	if project.CardType != project_model.CardTypeTextOnly {
@@ -426,6 +456,7 @@ func ViewProject(ctx *context.Context) {
 	ctx.Data["CanWriteProjects"] = ctx.Repo.Permission.CanWrite(unit.TypeProjects)
 	ctx.Data["Project"] = project
 	ctx.Data["IssuesMap"] = issuesMap
+	ctx.Data["ColumnCardsMap"] = columnCardsMap
 	ctx.Data["Columns"] = columns
 
 	ctx.HTML(http.StatusOK, tplProjectsView)
