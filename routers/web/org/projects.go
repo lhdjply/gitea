@@ -460,6 +460,16 @@ func ViewProject(ctx *context.Context) {
 	ctx.Data["Assignees"] = shared_user.MakeSelfOnTop(ctx.Doer, assigneeUsers)
 	ctx.Data["AssigneeID"] = assigneeID
 
+	var availableRepos []*repo_model.Repository
+	if project.OwnerID > 0 {
+		cond := builder.Eq{"owner_id": project.OwnerID}.And(repo_model.AccessibleRepositoryCondition(ctx.Doer, unit.TypeIssues))
+		if err := db.GetEngine(ctx).Where(cond).Find(&availableRepos); err != nil {
+			ctx.ServerError("FindAvailableRepositories", err)
+			return
+		}
+	}
+	ctx.Data["AvailableRepos"] = availableRepos
+
 	project.RenderedContent = templates.NewRenderUtils(ctx).MarkdownToHtml(project.Description)
 	ctx.Data["LinkedPRs"] = linkedPrsMap
 	ctx.Data["PageIsViewProjects"] = true
