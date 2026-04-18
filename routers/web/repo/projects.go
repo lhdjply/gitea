@@ -24,6 +24,7 @@ import (
 	"gitea.dev/modules/util"
 	"gitea.dev/modules/web"
 	"gitea.dev/routers/web/shared/issue"
+	shared_project "gitea.dev/routers/web/shared/project"
 	shared_user "gitea.dev/routers/web/shared/user"
 	"gitea.dev/services/audit"
 	"gitea.dev/services/context"
@@ -327,8 +328,14 @@ func ViewProject(ctx *context.Context) {
 		ctx.ServerError("LoadIssuesOfColumns", err)
 		return
 	}
+
+	columnCardsMap, err := shared_project.BuildColumnCardsMap(ctx, project, columns, issuesMap)
+	if err != nil {
+		ctx.ServerError("BuildColumnCardsMap", err)
+		return
+	}
 	for _, column := range columns {
-		column.NumIssues = int64(len(issuesMap[column.ID]))
+		column.NumIssues = int64(len(columnCardsMap[column.ID]))
 	}
 
 	if project.CardType != project_model.CardTypeTextOnly {
@@ -429,7 +436,7 @@ func ViewProject(ctx *context.Context) {
 	ctx.Data["IsProjectsPage"] = true
 	ctx.Data["CanWriteProjects"] = ctx.Repo.Permission.CanWrite(unit.TypeProjects)
 	ctx.Data["Project"] = project
-	ctx.Data["IssuesMap"] = issuesMap
+	ctx.Data["ColumnCardsMap"] = columnCardsMap
 	ctx.Data["Columns"] = columns
 
 	ctx.HTML(http.StatusOK, tplProjectsView)
