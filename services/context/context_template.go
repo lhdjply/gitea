@@ -183,6 +183,11 @@ func (c TemplateContext) WindowConfig() map[string]any {
 			"more_items":       locale.Tr("more_items"),
 			"copy_success":     locale.Tr("copy_success"),
 			"copy_error":       locale.Tr("copy_error"),
+			"loading":          locale.Tr("loading"),
+
+			"repo.projects.column.unbind_confirm": locale.Tr("repo.projects.column.unbind_confirm"),
+			"repo.issues.choose_issue":            locale.Tr("repo.issues.choose_issue"),
+			"repo.pulls.choose_pull":              locale.Tr("repo.pulls.choose_pull"),
 		},
 	}
 }
