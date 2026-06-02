@@ -14,7 +14,7 @@
 {{$repo_url := HTMLFormat "<a href='%s'>%s</a>" .Release.Repo.HTMLURL .Release.Repo.FullName}}
 <body>
 	<p>
-		{{.locale.Tr "mail.release.new.text" .Release.Publisher.Name $release_url $repo_url}}
+		{{.locale.Tr "mail.release.new.text" .Release.Publisher.GetDisplayName $release_url $repo_url}}
 	</p>
 	<h4>{{.locale.Tr "mail.release.title" .Release.Title}}</h4>
 	<p>
