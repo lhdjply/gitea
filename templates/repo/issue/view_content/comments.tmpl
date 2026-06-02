@@ -203,7 +203,7 @@
 						{{if eq .Poster.ID .Assignee.ID}}
 							{{ctx.Locale.Tr "repo.issues.remove_self_assignment" $createdStr}}
 						{{else}}
-							{{ctx.Locale.Tr "repo.issues.remove_assignee_at" .Poster.GetDisplayName $createdStr}}
+							{{ctx.Locale.Tr "repo.issues.remove_assignee_at" .Poster.DisplayName $createdStr}}
 						{{end}}
 					</span>
 				{{else}}
@@ -213,7 +213,7 @@
 						{{if eq .Poster.ID .AssigneeID}}
 							{{ctx.Locale.Tr "repo.issues.self_assign_at" $createdStr}}
 						{{else}}
-							{{ctx.Locale.Tr "repo.issues.add_assignee_at" .Poster.GetDisplayName $createdStr}}
+							{{ctx.Locale.Tr "repo.issues.add_assignee_at" .Poster.DisplayName $createdStr}}
 						{{end}}
 					</span>
 				{{end}}
