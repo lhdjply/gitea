@@ -481,7 +481,7 @@ func (u *User) ShortName(length int) string {
 func (u *User) GetShortDisplayNameLinkHTML() template.HTML {
 	fullName := strings.TrimSpace(u.FullName)
 	displayName, displayTooltip := u.Name, fullName
-	if setting.UI.DefaultShowFullName && fullName != "" {
+	if fullName != "" {
 		displayName, displayTooltip = fullName, u.Name
 	}
 	return htmlutil.HTMLFormat(`<a class="muted" href="%s" data-tooltip-content="%s">%s</a>`, u.HomeLink(), displayTooltip, displayName)
