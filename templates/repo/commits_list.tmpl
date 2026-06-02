@@ -17,7 +17,11 @@
 						<span class="author-wrapper">
 							{{- if .User -}}
 								{{- ctx.AvatarUtils.Avatar .User 20 "tw-mr-2" -}}
-								{{- .User.GetShortDisplayNameLinkHTML -}}
+								<a href="{{.User.HomeLink}}" style="color: black;">
+									<strong>
+										{{.User.DisplayName}}
+									</strong>
+								</a>
 							{{- else -}}
 								{{- ctx.AvatarUtils.AvatarByEmail .Author.Email .Author.Name 20 "tw-mr-2" -}}
 								{{- .Author.Name -}}
