@@ -324,7 +324,7 @@ func (ut *RenderUtils) participantAvatar(participant *user_model.CommitParticipa
 
 func participantName(participant *user_model.CommitParticipant) string {
 	if participant.GiteaUser != nil {
-		return participant.GiteaUser.GetDisplayName()
+		return participant.GiteaUser.DisplayName()
 	}
 	return participant.GitIdentity.Name
 }
@@ -404,7 +404,7 @@ func (ut *RenderUtils) AvatarStackWithNames(data *user_model.AvatarStackData) te
 	return b.HTMLString()
 }
 
-// participantNameLink prefers (in order): commits-by-author search, `GetShortDisplayNameLinkHTML` (keeps alt-name tooltip), `mailto:`, bare name.
+// participantNameLink prefers (in order): commits-by-author search, display-name link with short-name tooltip, `mailto:`, bare name.
 func (ut *RenderUtils) participantNameLink(data *user_model.AvatarStackData, participant *user_model.CommitParticipant) template.HTML {
 	if href := renderAvatarStackViewEmailLink(data, participant.GitIdentity.Email); href != "" {
 		return htmlutil.HTMLFormat(`<a class="muted" href="%s">%s</a>`, href, participantName(participant))

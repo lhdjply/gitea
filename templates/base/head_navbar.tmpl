@@ -46,12 +46,12 @@
 			<div class="ui dropdown jump item" data-tooltip-content="{{ctx.Locale.Tr "user_profile_and_more"}}">
 				<span class="text">
 					{{ctx.AvatarUtils.Avatar .SignedUser 24 "tw-mr-1"}}
-					<span class="only-mobile">{{.SignedUser.Name}}</span>
+					<span class="only-mobile">{{.SignedUser.DisplayName}}</span>
 					<span class="not-mobile flex-text-block">{{svg "octicon-triangle-down"}}</span>
 				</span>
 				<div class="menu user-menu">
 					<div class="header">
-						{{ctx.Locale.Tr "signed_in_as"}} <strong>{{.SignedUser.Name}}</strong>
+						{{ctx.Locale.Tr "signed_in_as"}} <strong>{{.SignedUser.DisplayName}}</strong>
 					</div>
 
 					<div class="divider"></div>
@@ -92,12 +92,12 @@
 						{{ctx.AvatarUtils.Avatar .SignedUser 24 "tw-mr-2"}}
 						{{if .IsAdmin}}{{svg "octicon-shield-check" 16 "navbar-admin-badge"}}{{end}}
 					</span>
-					<span class="only-mobile">{{.SignedUser.Name}}</span>
+					<span class="only-mobile">{{.SignedUser.DisplayName}}</span>
 					<span class="not-mobile flex-text-block">{{svg "octicon-triangle-down"}}</span>
 				</span>
 				<div class="menu user-menu">
 					<div class="header">
-						{{ctx.Locale.Tr "signed_in_as"}} <strong>{{.SignedUser.Name}}</strong>
+						{{ctx.Locale.Tr "signed_in_as"}} <strong>{{.SignedUser.DisplayName}}</strong>
 					</div>
 
 					<div class="divider"></div>
@@ -179,4 +179,4 @@
 		</div>
 	{{end}}
 </nav>
-{{template "base/head_banner"}}
+{{template "base/head_banner" .}}
