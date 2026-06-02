@@ -4,7 +4,7 @@
 			<div class="ui floating dropdown jump">
 				<span class="text">
 					{{ctx.AvatarUtils.Avatar .ContextUser 24 "tw-mr-1"}}
-					<span class="gt-ellipsis">{{.ContextUser.ShortName 40}}</span>
+					<span class="gt-ellipsis">{{.ContextUser.DisplayName}}</span>
 					<span class="org-visibility">
 						{{if .ContextUser.Visibility.IsLimited}}<div class="ui basic tiny horizontal label">{{ctx.Locale.Tr "org.settings.visibility.limited_shortname"}}</div>{{end}}
 						{{if .ContextUser.Visibility.IsPrivate}}<div class="ui basic tiny horizontal label">{{ctx.Locale.Tr "org.settings.visibility.private_shortname"}}</div>{{end}}
@@ -18,7 +18,7 @@
 					<div class="scrolling menu">
 						<a class="{{if eq .ContextUser.ID .SignedUser.ID}}active selected{{end}} item" href="{{AppSubUrl}}/{{if .PageIsIssues}}issues{{else if .PageIsPulls}}pulls{{else if .PageIsMilestonesDashboard}}milestones{{end}}">
 							{{ctx.AvatarUtils.Avatar .SignedUser}}
-							<span class="gt-ellipsis">{{.SignedUser.ShortName 40}}</span>
+							<span class="gt-ellipsis">{{.SignedUser.DisplayName}}</span>
 							<span class="org-visibility">
 								{{if .SignedUser.Visibility.IsLimited}}<div class="ui basic tiny horizontal label">{{ctx.Locale.Tr "org.settings.visibility.limited_shortname"}}</div>{{end}}
 								{{if .SignedUser.Visibility.IsPrivate}}<div class="ui basic tiny horizontal label">{{ctx.Locale.Tr "org.settings.visibility.private_shortname"}}</div>{{end}}
@@ -27,7 +27,7 @@
 						{{range .Orgs}}
 							<a class="{{if eq $.ContextUser.ID .ID}}active selected{{end}} item" title="{{.Name}}" href="{{.OrganisationLink}}/{{if $.PageIsIssues}}issues{{else if $.PageIsPulls}}pulls{{else if $.PageIsMilestonesDashboard}}milestones{{else}}dashboard{{end}}">
 								{{ctx.AvatarUtils.Avatar .}}
-								<span class="gt-ellipsis">{{.ShortName 40}}</span>
+								<span class="gt-ellipsis">{{.DisplayName}}</span>
 								<span class="org-visibility">
 									{{if .Visibility.IsLimited}}<div class="ui basic tiny horizontal label">{{ctx.Locale.Tr "org.settings.visibility.limited_shortname"}}</div>{{end}}
 									{{if .Visibility.IsPrivate}}<div class="ui basic tiny horizontal label">{{ctx.Locale.Tr "org.settings.visibility.private_shortname"}}</div>{{end}}
@@ -98,7 +98,7 @@
 			{{end}}
 			<div class="item">
 				<a class="ui primary basic button" href="{{.ContextUser.HomeLink}}" title="{{ctx.Locale.Tr "home.view_home" .ContextUser.Name}}">
-					{{ctx.Locale.Tr "home.view_home" (.ContextUser.ShortName 20)}}
+					{{ctx.Locale.Tr "home.view_home" .ContextUser.DisplayName}}
 				</a>
 			</div>
 		</div>
