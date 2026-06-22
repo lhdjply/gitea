@@ -937,7 +937,7 @@ func handleSettingsPostCancelTransfer(ctx *context.Context) {
 func handleSettingsPostDelete(ctx *context.Context) {
 	form := web.GetForm(ctx).(*forms.RepoSettingForm)
 	repo := ctx.Repo.Repository
-	if !ctx.Repo.Permission.IsOwner() {
+	if !ctx.Repo.Permission.IsOwner() && !ctx.Repo.Permission.IsAdmin() {
 		ctx.JSONErrorNotFound()
 		return
 	}
@@ -964,7 +964,7 @@ func handleSettingsPostDelete(ctx *context.Context) {
 func handleSettingsPostDeleteWiki(ctx *context.Context) {
 	form := web.GetForm(ctx).(*forms.RepoSettingForm)
 	repo := ctx.Repo.Repository
-	if !ctx.Repo.Permission.IsOwner() {
+	if !ctx.Repo.Permission.IsOwner() && !ctx.Repo.Permission.IsAdmin() {
 		ctx.JSONErrorNotFound()
 		return
 	}
