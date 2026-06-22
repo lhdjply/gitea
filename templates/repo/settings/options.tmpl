@@ -756,7 +756,7 @@
 		</div>
 		{{end}}
 
-		{{if .Permission.IsOwner}}
+		{{if or .Permission.IsOwner .Permission.IsAdmin}}
 		<h4 class="ui top attached error header">
 			{{ctx.Locale.Tr "repo.settings.danger_zone"}}
 		</h4>
@@ -875,7 +875,7 @@
 	</div>
 {{template "repo/settings/layout_footer" .}}
 
-{{if .Permission.IsOwner}}
+{{if or .Permission.IsOwner .Permission.IsAdmin}}
 	{{if .Repository.IsMirror}}
 		<div class="ui small modal" id="convert-mirror-repo-modal">
 			<div class="header">
