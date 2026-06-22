@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"gitea.dev/models/organization"
+	access_model "gitea.dev/models/perm/access"
 	repo_model "gitea.dev/models/repo"
 	user_model "gitea.dev/models/user"
 )
@@ -26,7 +27,16 @@ func CanUserDelete(ctx context.Context, repo *repo_model.Repository, user *user_
 		if err != nil {
 			return false, err
 		}
-		return isAdmin, nil
+		if isAdmin {
+			return true, nil
+		}
+
+		// Allow repo admins (e.g. users who created the repo in the org) to delete it
+		isRepoAdmin, err := access_model.IsUserRepoAdmin(ctx, repo, user)
+		if err != nil {
+			return false, err
+		}
+		return isRepoAdmin, nil
 	}
 
 	return false, nil
